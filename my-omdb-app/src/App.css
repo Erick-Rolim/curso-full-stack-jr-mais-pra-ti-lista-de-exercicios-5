@@ -12,8 +12,8 @@ body {
 }
 header {
   display: flex;
-  justify-content: space-between; /* espaço entre texto e botão */
-  align-items: flex-start;       /* alinha no topo */
+  justify-content: space-between; 
+  align-items: flex-start;       
   padding: 20px 40px;
   background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
   position: sticky;
@@ -32,7 +32,7 @@ header p {
   font-size: 14px;
   color: #bbb;
   margin-top: 6px;
-  margin-bottom: 20px; /* aumenta o espaçamento abaixo do texto */
+  margin-bottom: 20px; 
 }
 
 /* Barra de busca */
@@ -88,8 +88,6 @@ main {
   max-height: 80vh;
   overflow-y: auto;
 }
-
-/* Carrossel de cards estilo Netflix */
 .cards-grid {
   display: flex;
   gap: 12px;
@@ -295,8 +293,6 @@ main {
 .favorites-list button:hover {
   background: #f40612;
 }
-
-/* Responsividade */
 @media (max-width: 768px) {
   main {
     flex-direction: column;
@@ -327,7 +323,7 @@ main {
 .header-left {
   display: flex;
   flex-direction: column;
-  gap: 8px; /* espaçamento entre logo e descrição */
+  gap: 8px; 
 }
 .fav-toggle-btn {
   padding: 10px 16px;
@@ -348,7 +344,7 @@ main {
 .favorites-sidebar {
   position: fixed;
   top: 0;
-  right: -320px; /* escondida inicialmente */
+  right: -320px; 
   width: 320px;
   height: 100%;
   background: #111;
@@ -365,8 +361,8 @@ main {
 }
 
 .favorites-sidebar.open {
-  right: 0;       /* desliza para dentro */
-  opacity: 1;     /* fade-in */
+  right: 0;       
+  opacity: 1;    
 }
 .sidebar-header {
   display: flex;
