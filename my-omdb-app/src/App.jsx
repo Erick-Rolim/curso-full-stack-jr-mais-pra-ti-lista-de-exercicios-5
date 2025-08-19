@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
+import "./App.css";
 
-const API_KEY = import.meta.env.VITE_OMDB_API_KEY || '';
-const LS_KEY = 'omdb_favorites_v1';
+const API_KEY = import.meta.env.VITE_OMDB_API_KEY || "";
+const LS_KEY = "omdb_favorites_v1";
 
 function useLocalStorage(key, initial) {
   const [state, setState] = useState(() => {
     try {
       const raw = localStorage.getItem(key);
       return raw ? JSON.parse(raw) : initial;
-    } catch (e) {
-      console.error('localStorage read error', e);
+    } catch {
       return initial;
     }
   });
@@ -17,95 +17,48 @@ function useLocalStorage(key, initial) {
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(state));
-    } catch (e) {
-      console.error('localStorage write error', e);
-    }
+    } catch {}
   }, [key, state]);
 
   return [state, setState];
 }
 
 export default function App() {
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const [details, setDetails] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [favorites, setFavorites] = useLocalStorage(LS_KEY, []);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    // when selectedId changes, fetch details
-    if (!selectedId) {
-      setDetails(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    fetch(`https://www.omdbapi.com/?apikey=${API_KEY}&i=${selectedId}&plot=full`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data.Response === 'True') {
-          setDetails(data);
-          setError(null);
-        } else {
-          setError(data.Error || 'Erro ao carregar detalhes');
-        }
-      })
-      .catch((err) => setError(String(err)))
-      .finally(() => setLoading(false));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
-
-  useEffect(() => {
-    // fetch search results when query or page changes
-    if (!query) {
+  // Buscar filmes
+  async function searchMovies(page = 1) {
+    if (!query) return;
+    const res = await fetch(
+      `https://www.omdbapi.com/?apikey=${API_KEY}&s=${query}&page=${page}&language=pt-BR`
+    );
+    const data = await res.json();
+    if (data.Search) {
+      setResults(data.Search);
+      setTotalResults(parseInt(data.totalResults, 10));
+      setPage(page);
+    } else {
       setResults([]);
       setTotalResults(0);
-      setError(null);
-      return;
     }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    fetch(`https://www.omdbapi.com/?apikey=${API_KEY}&s=${encodeURIComponent(query)}&page=${page}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data.Response === 'True') {
-          setResults(data.Search || []);
-          setTotalResults(parseInt(data.totalResults || '0', 10));
-          setError(null);
-        } else {
-          setResults([]);
-          setTotalResults(0);
-          setError(data.Error || 'Nenhum resultado encontrado');
-        }
-      })
-      .catch((err) => setError(String(err)))
-      .finally(() => setLoading(false));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [query, page]);
-
-  function onSearchSubmit(e) {
-    e.preventDefault();
-    const trimmed = query.trim();
-    if (!trimmed) return;
-    setPage(1);
-    // effect will fetch
   }
 
+  // Detalhes do filme
+  async function fetchDetails(id) {
+    const res = await fetch(
+      `https://www.omdbapi.com/?apikey=${API_KEY}&i=${id}&plot=full&language=pt-BR`
+    );
+    const data = await res.json();
+    setSelected(data);
+  }
+
+  // Favoritos
   function toggleFavorite(movie) {
     const exists = favorites.find((f) => f.imdbID === movie.imdbID);
     if (exists) {
@@ -115,198 +68,168 @@ export default function App() {
     }
   }
 
-  function isFavorite(id) {
-    return favorites.some((f) => f.imdbID === id);
-  }
-
-  const totalPages = Math.ceil(totalResults / 10);
+  const isFav = (id) => favorites.some((f) => f.imdbID === id);
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <h1 style={{ margin: 0 }}>OMDb Movie Search</h1>
-        <p style={{ margin: '4px 0', fontSize: 13 }}>Busque filmes, veja detalhes e salve favoritos (localStorage)</p>
-      </header>
+    <div className="app">
+      {/* Header */}
+<header>
+  <div className="header-left">
+    <div className="logo">+Pra Ti Catálogo de Filmes e Séries</div>
+    <p>Encontre seus filmes e séries favoritos aqui.</p>
+  </div>
+  <button
+    className="fav-toggle-btn"
+    onClick={() => setSidebarOpen(true)}
+  >
+    ⭐ Favoritos
+  </button>
+</header>
 
-      <main style={styles.main}>
-        <section style={styles.left}>
-          <form onSubmit={onSearchSubmit} style={styles.searchForm}>
-            <input
-              aria-label="Search" 
-              placeholder="Digite o nome do filme..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={styles.input}
-            />
-            <button type="submit" style={styles.button}>Buscar</button>
-          </form>
 
-          {loading && <div style={styles.info}>Carregando...</div>}
-          {error && <div style={styles.error}>{error}</div>}
+      {/* Busca */}
+      <form
+        className="search-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          searchMovies(1);
+        }}
+      >
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar filmes ou séries..."
+        />
+        <button type="submit">Buscar</button>
+      </form>
 
-          <div style={styles.resultsGrid}>
-            {results.map((m) => (
-              <MovieCard
-                key={m.imdbID}
-                movie={m}
-                onDetails={() => setSelectedId(m.imdbID)}
-                onToggleFav={() => toggleFavorite(m)}
-                isFav={isFavorite(m.imdbID)}
-              />
+      {/* Resultados */}
+      <main>
+        <div className="left">
+          <div className="cards-grid">
+            {results.map((movie) => (
+              <div
+                key={movie.imdbID}
+                className="card"
+                onClick={() => fetchDetails(movie.imdbID)}
+              >
+                <img
+                  src={
+                    movie.Poster !== "N/A"
+                      ? movie.Poster
+                      : "https://via.placeholder.com/160x240?text=Sem+Imagem"
+                  }
+                  alt={movie.Title}
+                />
+                <div className="card-body">
+                  <div>{movie.Title}</div>
+                  <div className="card-year">{movie.Year}</div>
+                </div>
+                <div className="card-actions">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(movie);
+                    }}
+                  >
+                    {isFav(movie.imdbID) ? "Remover" : "Favoritar"}
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onChange={(p) => setPage(p)}
-            />
+          {/* Paginação */}
+          {totalResults > 10 && (
+            <div className="pagination">
+              <button
+                disabled={page === 1}
+                onClick={() => searchMovies(page - 1)}
+              >
+                ◀
+              </button>
+              <span>
+                Página {page} de {Math.ceil(totalResults / 10)}
+              </span>
+              <button
+                disabled={page * 10 >= totalResults}
+                onClick={() => searchMovies(page + 1)}
+              >
+                ▶
+              </button>
+            </div>
           )}
-        </section>
-
-        <aside style={styles.right}>
-          <h3>Favoritos</h3>
-          <FavoritesList
-            favorites={favorites}
-            onRemove={(id) => setFavorites(favorites.filter((f) => f.imdbID !== id))}
-            onOpen={(id) => setSelectedId(id)}
-          />
-        </aside>
+        </div>
       </main>
 
-      {selectedId && (
-        <DetailsModal
-          details={details}
-          loading={loading}
-          error={error}
-          onClose={() => setSelectedId(null)}
-          onToggleFav={() => {
-            if (!details) return;
-            toggleFavorite({ imdbID: details.imdbID, Title: details.Title, Year: details.Year, Poster: details.Poster, Type: details.Type });
-          }}
-          isFav={details ? isFavorite(details.imdbID) : false}
-        />
-      )}
-    </div>
-  );
-}
-
-function MovieCard({ movie, onDetails, onToggleFav, isFav }) {
-  return (
-    <div style={styles.card}>
-      <img
-        src={movie.Poster !== 'N/A' ? movie.Poster : placeholderPoster(movie)}
-        alt={`${movie.Title} poster`}
-        style={styles.poster}
-      />
-      <div style={styles.cardBody}>
-        <div style={{ fontWeight: 700 }}>{movie.Title}</div>
-        <div style={{ fontSize: 12 }}>{movie.Year}</div>
-        <div style={styles.cardActions}>
-          <button onClick={onDetails} style={styles.smallButton}>Detalhes</button>
-          <button onClick={onToggleFav} style={styles.smallButton}>{isFav ? 'Remover' : 'Favoritar'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Pagination({ page, totalPages, onChange }) {
-  const prev = () => onChange(Math.max(1, page - 1));
-  const next = () => onChange(Math.min(totalPages, page + 1));
-  return (
-    <div style={styles.pagination}>
-      <button onClick={prev} disabled={page === 1} style={styles.smallButton}>Anterior</button>
-      <div style={{ padding: '0 8px' }}>Página {page} / {totalPages}</div>
-      <button onClick={next} disabled={page === totalPages} style={styles.smallButton}>Próxima</button>
-    </div>
-  );
-}
-
-function DetailsModal({ details, loading, error, onClose, onToggleFav, isFav }) {
-  return (
-    <div style={styles.modalOverlay} role="dialog">
-      <div style={styles.modal}>
-        <div style={styles.modalHeader}>
-          <h2 style={{ margin: 0 }}>{details ? details.Title : 'Detalhes'}</h2>
-          <button onClick={onClose} style={styles.smallButton}>Fechar</button>
-        </div>
-
-        {loading && <div style={styles.info}>Carregando detalhes...</div>}
-        {error && <div style={styles.error}>{error}</div>}
-
-        {details && (
-          <div style={styles.modalBody}>
-            <img src={details.Poster !== 'N/A' ? details.Poster : placeholderPoster(details)} alt="poster" style={{ width: 160, marginRight: 12 }} />
-            <div>
-              <p><strong>Ano:</strong> {details.Year}</p>
-              <p><strong>Diretor:</strong> {details.Director}</p>
-              <p><strong>Elenco:</strong> {details.Actors}</p>
-              <p><strong>Gênero:</strong> {details.Genre}</p>
-              <p><strong>Nota IMDB:</strong> {details.imdbRating} ({details.imdbVotes} votos)</p>
-              <p><strong>Sinopse:</strong> {details.Plot}</p>
-
-              <div style={{ marginTop: 8 }}>
-                <button onClick={onToggleFav} style={styles.button}>{isFav ? 'Remover dos Favoritos' : 'Adicionar aos Favoritos'}</button>
+      {/* Modal de detalhes */}
+      {selected && (
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{selected.Title}</h2>
+              <button onClick={() => setSelected(null)}>✖</button>
+            </div>
+            <div className="modal-body">
+              <img
+                src={
+                  selected.Poster !== "N/A"
+                    ? selected.Poster
+                    : "https://via.placeholder.com/300x450?text=Sem+Imagem"
+                }
+                alt={selected.Title}
+              />
+              <div>
+                <p>
+                  <strong>Ano:</strong> {selected.Year}
+                </p>
+                <p>
+                  <strong>Gênero:</strong> {selected.Genre}
+                </p>
+                <p>
+                  <strong>Duração:</strong> {selected.Runtime}
+                </p>
+                <p>{selected.Plot}</p>
+                <button
+                  className="fav-button"
+                  onClick={() => toggleFavorite(selected)}
+                >
+                  {isFav(selected.imdbID)
+                    ? "Remover dos Favoritos"
+                    : "Adicionar aos Favoritos"}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Sidebar de Favoritos */}
+      <div className={`favorites-sidebar ${sidebarOpen ? "open" : ""}`}>
+        <div className="sidebar-header">
+          <h3>⭐ Favoritos</h3>
+          <button className="close-btn" onClick={() => setSidebarOpen(false)}>
+            ✖
+          </button>
+        </div>
+        <ul className="favorites-list">
+          {favorites.length === 0 && <p>Nenhum favorito ainda.</p>}
+          {favorites.map((fav) => (
+            <li key={fav.imdbID}>
+              <img
+                src={
+                  fav.Poster !== "N/A"
+                    ? fav.Poster
+                    : "https://via.placeholder.com/40x60?text=Sem+Img"
+                }
+                alt={fav.Title}
+              />
+              <span>{fav.Title}</span>
+              <button onClick={() => toggleFavorite(fav)}>Remover</button>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
 }
-
-function FavoritesList({ favorites, onRemove, onOpen }) {
-  if (!favorites || favorites.length === 0) return <div style={{ fontSize: 13 }}>Nenhum favorito ainda.</div>;
-  return (
-    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-      {favorites.map((f) => (
-        <li key={f.imdbID} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <img src={f.Poster !== 'N/A' ? f.Poster : placeholderPoster(f)} alt="thumb" style={{ width: 40 }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{f.Title}</div>
-            <div style={{ fontSize: 12 }}>{f.Year}</div>
-          </div>
-          <div>
-            <button onClick={() => onOpen(f.imdbID)} style={styles.smallButton}>Abrir</button>
-            <button onClick={() => onRemove(f.imdbID)} style={styles.smallButton}>Remover</button>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function placeholderPoster(m) {
-  // simple placeholder generated from title initials
-  const initials = (m && m.Title) ? m.Title.split(' ').slice(0,2).map(s => s[0]).join('') : 'N/A';
-  // return data-uri small SVG
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='220' height='330'><rect width='100%' height='100%' fill='%23ddd'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='48' fill='%23666'>${initials}</text></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-const styles = {
-  app: { fontFamily: 'Inter, Roboto, Arial, sans-serif', padding: 16, maxWidth: 1100, margin: '0 auto' },
-  header: { marginBottom: 12 },
-  main: { display: 'flex', gap: 16 },
-  left: { flex: 1 },
-  right: { width: 300, borderLeft: '1px solid #eee', paddingLeft: 12 },
-  searchForm: { display: 'flex', gap: 8, marginBottom: 12 },
-  input: { flex: 1, padding: '8px 10px', fontSize: 14, borderRadius: 6, border: '1px solid #ccc' },
-  button: { padding: '8px 10px', borderRadius: 6, border: 'none', background: '#0b5fff', color: '#fff', cursor: 'pointer' },
-  smallButton: { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', background: '#fff', cursor: 'pointer', marginLeft: 6 },
-  resultsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 },
-  card: { display: 'flex', flexDirection: 'column', border: '1px solid #eee', borderRadius: 8, overflow: 'hidden' },
-  poster: { width: '100%', height: 300, objectFit: 'cover' },
-  cardBody: { padding: 10, display: 'flex', flexDirection: 'column', gap: 8 },
-  cardActions: { marginTop: 'auto', display: 'flex', justifyContent: 'space-between' },
-  pagination: { marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  info: { padding: 8, background: '#f0f7ff', borderRadius: 6, marginBottom: 8 },
-  error: { padding: 8, background: '#ffecec', color: '#900', borderRadius: 6, marginBottom: 8 },
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-  modal: { background: '#fff', borderRadius: 8, padding: 16, width: 'min(900px, 95%)', maxHeight: '90vh', overflowY: 'auto' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalBody: { display: 'flex', gap: 12 },
-};
